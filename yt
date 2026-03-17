@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# Check for URL
+URL="$1"
+if [ -z "$URL" ]; then
+    URL=$(whiptail --inputbox "Paste YouTube URL here:" 8 60 --title "YT Manager" 3>&1 1>&2 2>&3)
+    [ -z "$URL" ] && exit 1
+fi
+
+# 1. Select Format (Clickable Menu)
+CHOICE=$(whiptail --title "Format Selection" --menu "Choose output format:" 15 60 4 \
+"1" "MP4 (Video)" \
+"2" "MKV (Video + Subs)" \
+"3" "MP3 (Highest Audio)" 3>&1 1>&2 2>&3)
+
+# 2. Select Quality (if video)
+if [ "$CHOICE" != "3" ]; then
+    USER_RES=$(whiptail --title "Quality" --menu "Select Max Resolution:" 15 60 5 \
+    "2160" "4K" \
+    "1080" "Full HD" \
+    "720" "HD" \
+    "480" "SD" 3>&1 1>&2 2>&3)
+    
+    EXT="mp4"; [ "$CHOICE" == "2" ] && EXT="mkv"
+else
+    EXT="mp3"
+fi
+
+# 3. Define Logic
+COMMON="--sleep-requests 2 --add-metadata --part"
+
+if [ "$EXT" == "mp3" ]; then
+    OUT="music/%(playlist_title|Unknown Album)s/%(title)s + %(uploader)s.%(ext)s"
+    OPTS="-x --audio-format mp3 --audio-quality 0"
+else
+    OUT="yt/%(uploader)s/%(playlist_title|NoPlaylist)s/%(title)s + ${USER_RES}p.%(ext)s"
+    OPTS="-f bv[height<=${USER_RES}]+ba/b[height<=${USER_RES}] --merge-output-format $EXT"
+    [ "$EXT" == "mkv" ] && OPTS="$OPTS --embed-subs --all-subs"
+fi
+
+# 4. Conflict Check & Download
+# (Existing file logic inside yt-dlp's --no-overwrites)
+yt-dlp $COMMON $OPTS -o "$OUT" --no-overwrites "$URL"
+
+whiptail --msgbox "Task Finished!" 8 40
