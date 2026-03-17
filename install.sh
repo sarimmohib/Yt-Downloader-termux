@@ -5,7 +5,9 @@ echo "Starting Yt-Downloader-termux Installer..."
 # 1. Update and install dependencies
 pkg update && pkg upgrade -y
 pkg install python ffmpeg ncurses-utils git -y
-pip install yt-dlp
+pip install yt-dlp -y
+pkg install newt -y
+
 
 # 2. Setup the command
 # This takes the 'yt' file from your cloned folder and puts it in the system path
