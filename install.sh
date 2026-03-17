@@ -6,7 +6,8 @@ echo "Starting Yt-Downloader-termux Installer..."
 pkg update && pkg upgrade -y
 pkg install python ffmpeg ncurses-utils git -y
 pip install yt-dlp -y
-pkg install newt -y
+pkg install libnewt -y
+
 
 
 # 2. Setup the command
