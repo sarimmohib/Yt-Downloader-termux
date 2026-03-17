@@ -2,37 +2,43 @@
 
 URL="$1"
 
+# 1. URL Capture
 if [ -z "$URL" ]; then
     read -p "🔗 Paste YouTube URL: " URL
     [ -z "$URL" ] && { echo "❌ No URL provided."; exit 1; }
 fi
 
+# 2. Simple Menu
 echo "==============================="
 echo "       YT MANAGER"
 echo "==============================="
-echo "[1] Video"
-echo "[2] Audio"
+echo "[1] Video (Smart Sorting)"
+echo "[2] Audio (MP3)"
 echo "-------------------------------"
 read -p "👉 Choose type (1/2): " TYPE
 
+# 3. Global Settings (Removed --show-progress to fix your error)
 COMMON="--embed-metadata --no-warnings"
 
 if [ "$TYPE" == "2" ]; then
     # Audio Setup
     OPTS="-x --audio-format mp3 --audio-quality 0"
-    OUT="music/%(uploader)s/%(playlist_title|Singles)s/%(title)s.%(ext)s"
+    # Path: /storage/emulated/0/Music/Artist Name/Playlist Name/Title.mp3
+    OUT="/storage/emulated/0/Music/%(uploader)s/%(playlist_title|Singles)s/%(title)s.%(ext)s"
 else
-    # Video Setup
+    # Video Setup with Smart Sorting
     read -p "👉 Max Resolution (e.g., 1080, 720) [Default 1080]: " RES
     [ -z "$RES" ] && RES="1080"
     
-    # FIX: No more escaped quotes here!
     OPTS="-S res:${RES} --merge-output-format mkv"
-    OUT="yt/%(uploader)s/%(playlist_title|Singles)s/%(title)s_[${RES}p].%(ext)s"
+    # Path: /storage/emulated/0/yt/Artist Name/Playlist Name/Title.mkv
+    OUT="/storage/emulated/0/yt/%(uploader)s/%(playlist_title|Singles)s/%(title)s_[${RES}p].%(ext)s"
 fi
 
-echo "🚀 Starting download... (Extracting info and finding best formats)"
+echo "🚀 Starting download to Internal Storage..."
 
+# 4. Final Command
+# Double quotes around "$OUT" ensure folders with spaces work perfectly!
 yt-dlp $COMMON $OPTS -o "$OUT" "$URL"
 
-echo "✅ Task Finished!"
+echo "✅ Task Finished! Check your /yt/ or /Music/ folder."
