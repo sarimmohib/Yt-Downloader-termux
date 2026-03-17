@@ -1,14 +1,17 @@
 #!/bin/bash
 
-echo "Archiving dependencies and setting up your YT Manager..."
+echo "Starting Auto-Installer..."
 
-# Auto-detect and install required packages
 pkg update && pkg upgrade -y
-pkg install python ffmpeg ncurses-utils -y
+pkg install python ffmpeg ncurses-utils git -y
 pip install yt-dlp
 
-# Move the main script to the bin folder
+# 1. Move the 'yt' script to the system bin
+# This allows the user to just type 'yt' from any folder
 chmod +x yt
 cp yt $PREFIX/bin/yt
 
-echo "Setup complete! Just type 'yt' to start."
+echo "-----------------------------------------------"
+echo "Setup Complete! You can now delete this folder."
+echo "Usage: yt [URL]"
+echo "-----------------------------------------------"
