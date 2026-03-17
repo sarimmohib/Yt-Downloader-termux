@@ -1,45 +1,46 @@
 #!/bin/bash
 
-# Check for URL
+# Capture the link from the command line
 URL="$1"
+
+# If no link was provided, show the clickable input box
 if [ -z "$URL" ]; then
-    URL=$(whiptail --inputbox "Paste YouTube URL here:" 8 60 --title "YT Manager" 3>&1 1>&2 2>&3)
+    URL=$(whiptail --inputbox "No link detected. Paste URL here:" 8 60 --title "YT Manager" 3>&1 1>&2 2>&3)
     [ -z "$URL" ] && exit 1
 fi
 
-# 1. Select Format (Clickable Menu)
+# 1. Select Format (Clickable)
 CHOICE=$(whiptail --title "Format Selection" --menu "Choose output format:" 15 60 4 \
 "1" "MP4 (Video)" \
 "2" "MKV (Video + Subs)" \
 "3" "MP3 (Highest Audio)" 3>&1 1>&2 2>&3)
 
-# 2. Select Quality (if video)
+# 2. Select Quality (If Video)
 if [ "$CHOICE" != "3" ]; then
     USER_RES=$(whiptail --title "Quality" --menu "Select Max Resolution:" 15 60 5 \
     "2160" "4K" \
     "1080" "Full HD" \
     "720" "HD" \
     "480" "SD" 3>&1 1>&2 2>&3)
-    
     EXT="mp4"; [ "$CHOICE" == "2" ] && EXT="mkv"
 else
     EXT="mp3"
 fi
 
-# 3. Define Logic
-COMMON="--sleep-requests 2 --add-metadata --part"
+# 3. Logic & Templates
+COMMON="--sleep-requests 2 --add-metadata"
 
 if [ "$EXT" == "mp3" ]; then
     OUT="music/%(playlist_title|Unknown Album)s/%(title)s + %(uploader)s.%(ext)s"
     OPTS="-x --audio-format mp3 --audio-quality 0"
 else
-    OUT="yt/%(uploader)s/%(playlist_title|NoPlaylist)s/%(title)s + ${USER_RES}p.%(ext)s"
+    # Automatically handles Artist > Playlist (if exists) > Title
+    OUT="yt/%(uploader)s/%(playlist_title|)s/%(title)s + ${USER_RES}p.%(ext)s"
     OPTS="-f bv[height<=${USER_RES}]+ba/b[height<=${USER_RES}] --merge-output-format $EXT"
     [ "$EXT" == "mkv" ] && OPTS="$OPTS --embed-subs --all-subs"
 fi
 
-# 4. Conflict Check & Download
-# (Existing file logic inside yt-dlp's --no-overwrites)
+# 4. Run yt-dlp
 yt-dlp $COMMON $OPTS -o "$OUT" --no-overwrites "$URL"
 
-whiptail --msgbox "Task Finished!" 8 40
+whiptail --msgbox "Download Finished Successfully!" 8 40
