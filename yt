@@ -2,44 +2,37 @@
 
 URL="$1"
 
-# 1. Ask for URL if not provided via command line
 if [ -z "$URL" ]; then
-    read -p "Paste YouTube URL: " URL
-    [ -z "$URL" ] && { echo "No URL provided. Exiting."; exit 1; }
+    read -p "🔗 Paste YouTube URL: " URL
+    [ -z "$URL" ] && { echo "❌ No URL provided."; exit 1; }
 fi
 
-# 2. Simple Text Menu
 echo "==============================="
 echo "       YT MANAGER"
 echo "==============================="
-echo "[1] MP4 (Video)"
-echo "[2] MKV (Video + Subs)"
-echo "[3] MP3 (Audio Only)"
+echo "[1] Video"
+echo "[2] Audio"
 echo "-------------------------------"
-read -p "👉 Choose format (1/2/3): " CHOICE
+read -p "👉 Choose type (1/2): " TYPE
 
-if [ "$CHOICE" == "3" ]; then
-    EXT="mp3"
-    OUT="music/%(playlist_title|Unknown)s/%(title)s.%(ext)s"
+COMMON="--embed-metadata --no-warnings"
+
+if [ "$TYPE" == "2" ]; then
+    # Audio Setup
     OPTS="-x --audio-format mp3 --audio-quality 0"
+    OUT="music/%(uploader)s/%(playlist_title|Singles)s/%(title)s.%(ext)s"
 else
-    echo "-------------------------------"
-    echo "Common qualities: 2160, 1080, 720, 480"
-    read -p "👉 Enter Max Resolution (default 1080): " RES
-    
-    # Default to 1080 if you just hit Enter
+    # Video Setup
+    read -p "👉 Max Resolution (e.g., 1080, 720) [Default 1080]: " RES
     [ -z "$RES" ] && RES="1080"
     
-    EXT="mp4"; [ "$CHOICE" == "2" ] && EXT="mkv"
-    OUT="yt/%(uploader)s/%(playlist_title|)s/%(title)s + ${RES}p.%(ext)s"
-    
-    # CRITICAL FIX: Double quotes around the format string
-    OPTS="-f \"bv[height<=${RES}]+ba/b[height<=${RES}]/b\" --merge-output-format $EXT"
+    # FIX: No more escaped quotes here!
+    OPTS="-S res:${RES} --merge-output-format mkv"
+    OUT="yt/%(uploader)s/%(playlist_title|Singles)s/%(title)s_[${RES}p].%(ext)s"
 fi
 
-echo "Starting download..."
+echo "🚀 Starting download... (Extracting info and finding best formats)"
 
-# 3. Execute yt-dlp
-yt-dlp --sleep-requests 2 --add-metadata $OPTS -o "$OUT" "$URL"
+yt-dlp $COMMON $OPTS -o "$OUT" "$URL"
 
-echo "Task Finished!"
+echo "✅ Task Finished!"
