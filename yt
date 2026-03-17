@@ -17,28 +17,28 @@ echo "[2] Audio (MP3)"
 echo "-------------------------------"
 read -p "👉 Choose type (1/2): " TYPE
 
-# 3. Global Settings (Removed --show-progress to fix your error)
+# 3. Global Settings
 COMMON="--embed-metadata --no-warnings"
 
 if [ "$TYPE" == "2" ]; then
     # Audio Setup
     OPTS="-x --audio-format mp3 --audio-quality 0"
-    # Path: /storage/emulated/0/Music/Artist Name/Playlist Name/Title.mp3
-    OUT="/storage/emulated/0/Music/%(uploader)s/%(playlist_title|Singles)s/%(title)s.%(ext)s"
+    # Path: /storage/emulated/0/Music/Artist Name/Title.mp3
+    OUT="/storage/emulated/0/Music/%(uploader)s/%(title)s.%(ext)s"
 else
-    # Video Setup with Smart Sorting
+    # Video Setup
     read -p "👉 Max Resolution (e.g., 1080, 720) [Default 1080]: " RES
     [ -z "$RES" ] && RES="1080"
     
     OPTS="-S res:${RES} --merge-output-format mkv"
-    # Path: /storage/emulated/0/yt/Artist Name/Playlist Name/Title.mkv
-    OUT="/storage/emulated/0/yt/%(uploader)s/%(playlist_title|Singles)s/%(title)s_[${RES}p].%(ext)s"
+    # Path: /storage/emulated/0/yt/Artist Name/Title_[Res].mkv
+    OUT="/storage/emulated/0/yt/%(uploader)s/%(title)s_[${RES}p].%(ext)s"
 fi
 
 echo "🚀 Starting download to Internal Storage..."
 
-# 4. Final Command
-# Double quotes around "$OUT" ensure folders with spaces work perfectly!
+# 4. Final Execution
+# The double quotes around "$OUT" handle folders with spaces automatically.
 yt-dlp $COMMON $OPTS -o "$OUT" "$URL"
 
 echo "✅ Task Finished! Check your /yt/ or /Music/ folder."
