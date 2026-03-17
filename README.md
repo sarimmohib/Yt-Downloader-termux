@@ -1,4 +1,4 @@
-# Yt-Downloader-termux
+# Yt-termux
 
 A powerful, TUI-based (Text User Interface) YouTube downloader and manager for Termux.
 
