@@ -14,5 +14,4 @@ Simply clone the repo and run the installer:
 
 ```bash
 git clone https://github.com/sarimmohib/Yt-Downloader-termux
-cd Yt-Downloader-termux
-bash install.sh
+bash ./Yt-Downloader-termux/install.sh
