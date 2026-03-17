@@ -1,17 +1,19 @@
 #!/bin/bash
 
-echo "Starting Auto-Installer..."
+echo "Starting Yt-Downloader-termux Installer..."
 
+# 1. Update and install dependencies
 pkg update && pkg upgrade -y
 pkg install python ffmpeg ncurses-utils git -y
 pip install yt-dlp
 
-# 1. Move the 'yt' script to the system bin
-# This allows the user to just type 'yt' from any folder
+# 2. Setup the command
+# This takes the 'yt' file from your cloned folder and puts it in the system path
 chmod +x yt
 cp yt $PREFIX/bin/yt
 
-echo "-----------------------------------------------"
-echo "Setup Complete! You can now delete this folder."
+echo "--------------------------------------------------"
+echo "--->Installation Successful!"
+echo "You can now type 'yt' from anywhere to start."
 echo "Usage: yt [URL]"
-echo "-----------------------------------------------"
+echo "--------------------------------------------------"
