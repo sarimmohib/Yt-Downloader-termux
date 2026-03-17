@@ -1,14 +1,18 @@
-# Yt-Downloader
+# Yt-Downloader-termux
 
-A powerful, TUI-based (Text User Interface) YouTube downloader and manager for Termux.
+A streamlined, TUI-based YouTube downloader for Termux that organizes your media automatically.
 
 ## Features
-- **Interactive Menus:** Select quality and format with arrow keys/clicks.
-- **Smart Pathing:** Automatically organizes downloads by Artist/Playlist/Title.
-- **Resume Support:** Automatically handles `.part` files to resume interrupted downloads.
-- **Auto-Cleanup:** Merges video/audio and cleans up temporary files instantly.
+- **Smart Pathing:** Automatically sorts into `music/` or `yt/` based on metadata.
+- **Interactive UI:** Choose quality (4K, 1080p, etc.) and format (MP4, MKV, MP3) using menus.
+- **Artist/Playlist Folders:** Groups videos by Uploader and Playlist name.
+- **Resume Support:** Handles interrupted downloads using `.part` files.
+- **Auto-Muxing:** Uses FFmpeg to merge high-quality video and audio instantly.
 
-## One-Line Install
-Open Termux and paste this command:
+## Quick Installation
+Simply clone the repo and run the installer:
+
 ```bash
-curl -sL [https://github.com/sarimmohib/Yt-Downloader-termux/main/install.sh](https://github.com/sarimmohib/Yt-Downloader-termux/main/install.sh) | bash
+git clone [https://github.com/sarimmohib/Yt-Downloader-termux](https://github.com/sarimmohib/Yt-Downloader-termux)
+cd Yt-Downloader-termux
+bash install.sh
