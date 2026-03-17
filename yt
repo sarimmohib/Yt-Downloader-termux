@@ -1,44 +1,45 @@
 #!/bin/bash
 
-# 1. Install dialog if missing (Fixes the whiptail error)
-if ! command -v dialog &> /dev/null; then
-    pkg install dialog -y
-fi
-
 URL="$1"
 
-# 2. Get URL if not provided
+# 1. Ask for URL if not provided via command line
 if [ -z "$URL" ]; then
-    URL=$(dialog --title "YT Manager" --inputbox "Paste URL here:" 8 60 3>&1 1>&2 2>&3)
-    [ -z "$URL" ] && exit 1
+    read -p "Paste YouTube URL: " URL
+    [ -z "$URL" ] && { echo "No URL provided. Exiting."; exit 1; }
 fi
 
-# 3. Select Format
-CHOICE=$(dialog --clear --title "Format" --menu "Choose output:" 12 50 4 \
-"1" "MP4 Video" \
-"2" "MKV Video" \
-"3" "MP3 Audio" 3>&1 1>&2 2>&3)
+# 2. Simple Text Menu
+echo "==============================="
+echo "       YT MANAGER"
+echo "==============================="
+echo "[1] MP4 (Video)"
+echo "[2] MKV (Video + Subs)"
+echo "[3] MP3 (Audio Only)"
+echo "-------------------------------"
+read -p "👉 Choose format (1/2/3): " CHOICE
 
 if [ "$CHOICE" == "3" ]; then
     EXT="mp3"
     OUT="music/%(playlist_title|Unknown)s/%(title)s.%(ext)s"
     OPTS="-x --audio-format mp3 --audio-quality 0"
 else
-    # 4. Select Quality
-    RES=$(dialog --title "Quality" --menu "Max Resolution:" 12 50 4 \
-    "2160" "4K" "1080" "1080p" "720" "720p" "480" "480p" 3>&1 1>&2 2>&3)
+    echo "-------------------------------"
+    echo "Common qualities: 2160, 1080, 720, 480"
+    read -p "👉 Enter Max Resolution (default 1080): " RES
     
-    [ -z "$RES" ] && RES="1080" # Default safety
+    # Default to 1080 if you just hit Enter
+    [ -z "$RES" ] && RES="1080"
     
     EXT="mp4"; [ "$CHOICE" == "2" ] && EXT="mkv"
     OUT="yt/%(uploader)s/%(playlist_title|)s/%(title)s + ${RES}p.%(ext)s"
     
-    # --- THE CRITICAL FIX IS HERE ---
-    # We use double quotes around the whole string so yt-dlp gets the brackets exactly as they are.
+    # CRITICAL FIX: Double quotes around the format string
     OPTS="-f \"bv[height<=${RES}]+ba/b[height<=${RES}]/b\" --merge-output-format $EXT"
 fi
 
-# 5. Run it
+echo "Starting download..."
+
+# 3. Execute yt-dlp
 yt-dlp --sleep-requests 2 --add-metadata $OPTS -o "$OUT" "$URL"
 
-dialog --msgbox "Download Finished!" 8 40
+echo "Task Finished!"
