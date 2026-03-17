@@ -1,50 +1,32 @@
 #!/bin/bash
 
-# Capture URL
+# Ensure dependencies are installed
+if ! command -v dialog &> /dev/null; then pkg install dialog -y; fi
+
 URL="$1"
+[ -z "$URL" ] && URL=$(dialog --title "YT Manager" --inputbox "Paste URL:" 8 60 3>&1 1>&2 2>&3)
+[ -z "$URL" ] && exit 1
 
-# 1. Check if whiptail is installed, if not, install it
-if ! command -v whiptail &> /dev/null; then
-    pkg install newt -y
-fi
+# Menu Selection
+CHOICE=$(dialog --clear --title "Format" --menu "Choose:" 12 50 4 \
+"1" "MP4 Video" \
+"2" "MKV Video" \
+"3" "MP3 Audio" 3>&1 1>&2 2>&3)
 
-# 2. Get URL if not provided via command line
-if [ -z "$URL" ]; then
-    URL=$(whiptail --inputbox "Paste YouTube URL here:" 8 60 --title "YT Manager" 3>&1 1>&2 2>&3)
-    [ -z "$URL" ] && exit 1
-fi
-
-# 3. Select Format
-CHOICE=$(whiptail --title "Format Selection" --menu "Choose output format:" 15 60 4 \
-"1" "MP4 (Video)" \
-"2" "MKV (Video + Subs)" \
-"3" "MP3 (Highest Audio)" 3>&1 1>&2 2>&3)
-
-# 4. Handle Selection
 if [ "$CHOICE" == "3" ]; then
-    EXT="mp3"
-    OUT="music/%(playlist_title|Unknown Album)s/%(title)s + %(uploader)s.%(ext)s"
     OPTS="-x --audio-format mp3 --audio-quality 0"
+    OUT="music/%(playlist_title|Unknown)s/%(title)s.%(ext)s"
 else
-    # Default to 1080 if something goes wrong
-    USER_RES=$(whiptail --title "Quality" --menu "Select Max Resolution:" 15 60 5 \
-    "2160" "4K" \
-    "1080" "Full HD" \
-    "720" "HD" \
-    "480" "SD" 3>&1 1>&2 2>&3)
-    
-    # Safety check: if user cancels quality menu, default to 1080
-    [ -z "$USER_RES" ] && USER_RES="1080"
+    RES=$(dialog --title "Quality" --menu "Max Height:" 12 50 4 \
+    "2160" "4K" "1080" "1080p" "720" "720p" "480" "480p" 3>&1 1>&2 2>&3)
+    [ -z "$RES" ] && RES="1080"
     
     EXT="mp4"; [ "$CHOICE" == "2" ] && EXT="mkv"
+    OUT="yt/%(uploader)s/%(playlist_title|)s/%(title)s + ${RES}p.%(ext)s"
     
-    OUT="yt/%(uploader)s/%(playlist_title|)s/%(title)s + ${USER_RES}p.%(ext)s"
-    # FIXED FORMAT STRING:
-    OPTS="-f bv[height<=${USER_RES}]+ba/b[height<=${USER_RES}]/b --merge-output-format $EXT"
-    [ "$EXT" == "mkv" ] && OPTS="$OPTS --embed-subs --all-subs"
+    # CRITICAL: Quotes around the format string
+    OPTS="-f bv[height<=${RES}]+ba/b[height<=${RES}]/b --merge-output-format $EXT"
 fi
 
-# 5. Execute
-yt-dlp --sleep-requests 2 --add-metadata $OPTS -o "$OUT" --no-overwrites "$URL"
-
-whiptail --msgbox "Download Finished!" 8 40
+# Run it
+yt-dlp --sleep-requests 2 --add-metadata $OPTS -o "$OUT" "$URL"
