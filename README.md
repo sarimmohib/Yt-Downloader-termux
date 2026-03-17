@@ -11,4 +11,4 @@ A powerful, TUI-based (Text User Interface) YouTube downloader and manager for T
 ## One-Line Install
 Open Termux and paste this command:
 ```bash
-curl -sL [https://github.com/sarimmohib/Yt-Downloader-termux](https://raw.githubusercontent.com/YOUR_USERNAME/yt-termux/main/install.sh) | bash
+curl -sL [https://github.com/sarimmohib/Yt-Downloader-termux/main/install.sh](https://github.com/sarimmohib/Yt-Downloader-termux/main/install.sh) | bash
