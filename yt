@@ -1,44 +1,346 @@
-#!/bin/bash
+#!/usr/bin/env python3
+"""
+yt — Interactive TUI YouTube Downloader for Termux
+Drop-in replacement for the bash 'yt' script.
+Requires: python3, yt-dlp, ffmpeg (all from install.sh)
+"""
 
-URL="$1"
+import curses
+import subprocess
+import sys
+import os
+import re
+import shutil
+import signal
 
-# 1. URL Capture
-if [ -z "$URL" ]; then
-    read -p "🔗 Paste YouTube URL: " URL
-    [ -z "$URL" ] && { echo "❌ No URL provided."; exit 1; }
-fi
+# ─── CONFIG ────────────────────────────────────────────────────────────────────
 
-# 2. Simple Menu
-echo "==============================="
-echo "       YT MANAGER"
-echo "==============================="
-echo "[1] Video (Smart Sorting)"
-echo "[2] Audio (MP3)"
-echo "-------------------------------"
-read -p "👉 Choose type (1/2): " TYPE
+VIDEO_QUALITIES = [
+    ("2160", "4K  (2160p)"),
+    ("1440", "2K  (1440p)"),
+    ("1080", "FHD (1080p)"),
+    ("720",  "HD  (720p)"),
+    ("480",  "SD  (480p)"),
+    ("360",  "Low (360p)"),
+]
 
-# 3. Global Settings
-COMMON="--embed-metadata --no-warnings"
+AUDIO_QUALITIES = [
+    ("0",   "Best (VBR ~320kbps)"),
+    ("128", "128 kbps"),
+    ("192", "192 kbps"),
+    ("256", "256 kbps"),
+    ("320", "320 kbps"),
+]
 
-if [ "$TYPE" == "2" ]; then
-    # Audio Setup
-    OPTS="-x --audio-format mp3 --audio-quality 0"
-    # Path: /storage/emulated/0/Music/Artist Name/Title.mp3
-    OUT="/storage/emulated/0/Music/%(uploader)s/%(title)s.%(ext)s"
-else
-    # Video Setup
-    read -p "👉 Max Resolution (e.g., 1080, 720) [Default 1080]: " RES
-    [ -z "$RES" ] && RES="1080"
-    
-    OPTS="-S res:${RES} --merge-output-format mkv"
-    # Path: /storage/emulated/0/yt/Artist Name/Title_[Res].mkv
-    OUT="/storage/emulated/0/yt/%(uploader)s/%(title)s_[${RES}p].%(ext)s"
-fi
+VIDEO_FORMATS = [
+    ("mkv", "MKV  (best compatibility)"),
+    ("mp4", "MP4  (universal)"),
+    ("webm","WEBM (smaller size)"),
+]
 
-echo "🚀 Starting download to Internal Storage..."
+AUDIO_FORMATS = [
+    ("mp3",  "MP3  (universal)"),
+    ("flac", "FLAC (lossless)"),
+    ("ogg",  "OGG  (open format)"),
+    ("m4a",  "M4A  (Apple)"),
+    ("wav",  "WAV  (uncompressed)"),
+]
 
-# 4. Final Execution
-# The double quotes around "$OUT" handle folders with spaces automatically.
-yt-dlp $COMMON $OPTS -o "$OUT" "$URL"
+MUSIC_DIR = "/storage/emulated/0/Music"
+VIDEO_DIR = "/storage/emulated/0/yt"
 
-echo "✅ Task Finished! Check your /yt/ or /Music/ folder."
+# ─── COLORS ────────────────────────────────────────────────────────────────────
+
+def init_colors():
+    curses.start_color()
+    curses.use_default_colors()
+    curses.init_pair(1, curses.COLOR_CYAN, -1)       # headers
+    curses.init_pair(2, curses.COLOR_GREEN, -1)      # selected
+    curses.init_pair(3, curses.COLOR_YELLOW, -1)     # prompts
+    curses.init_pair(4, curses.COLOR_RED, -1)        # errors
+    curses.init_pair(5, curses.COLOR_MAGENTA, -1)    # accents
+    curses.init_pair(6, curses.COLOR_WHITE, curses.COLOR_BLUE)  # title bar
+
+# ─── UI HELPERS ────────────────────────────────────────────────────────────────
+
+BANNER = r"""
+ ██╗   ██╗████████╗    ██████╗  ██████╗ ██╗    ██╗███╗   ██╗
+ ╚██╗ ██╔╝╚══██╔══╝    ██╔══██╗██╔═══██╗██║    ██║████╗  ██║
+  ╚████╔╝    ██║       ██║  ██║██║   ██║██║ █╗ ██║██╔██╗ ██║
+   ╚██╔╝     ██║       ██║  ██║██║   ██║██║███╗██║██║╚██╗██║
+    ██║      ██║       ██████╔╝╚██████╔╝╚███╔███╔╝██║ ╚████║
+    ╚═╝      ╚═╝       ╚═════╝  ╚═════╝  ╚══╝╚══╝ ╚═╝  ╚═══╝
+"""
+
+def draw_banner(win, y=0):
+    h, w = win.getmaxyx()
+    for i, line in enumerate(BANNER.split('\n')):
+        if y + i >= h - 1:
+            break
+        x = max(0, (w - len(line)) // 2)
+        try:
+            win.addstr(y + i, x, line[:w-1], curses.color_pair(1) | curses.A_BOLD)
+        except curses.error:
+            pass
+    return y + len(BANNER.split('\n')) + 1
+
+def draw_box(win, y, x, h, w, title=""):
+    """Draw a rounded box."""
+    try:
+        win.attron(curses.color_pair(5))
+        # Horizontal lines
+        win.addstr(y, x, "╭" + "─" * (w - 2) + "╮")
+        win.addstr(y + h - 1, x, "╰" + "─" * (w - 2) + "╯")
+        # Vertical lines
+        for i in range(1, h - 1):
+            win.addstr(y + i, x, "│")
+            win.addstr(y + i, x + w - 1, "│")
+        # Title
+        if title:
+            t = f" {title} "
+            tx = x + (w - len(t)) // 2
+            win.addstr(y, tx, t, curses.color_pair(1) | curses.A_BOLD)
+        win.attroff(curses.color_pair(5))
+    except curses.error:
+        pass
+
+def draw_menu(win, y, x, items, selected, width=40):
+    """Draw a selectable menu list. Returns nothing; caller handles input."""
+    for i, (val, label) in enumerate(items):
+        prefix = "  ▸ " if i == selected else "    "
+        attr = curses.color_pair(2) | curses.A_BOLD if i == selected else curses.A_NORMAL
+        try:
+            win.addstr(y + i, x, prefix, attr)
+            win.addstr(label[:width - 5], attr)
+            # Clear rest of line
+            remaining = width - len(prefix) - min(len(label), width - 5)
+            if remaining > 0:
+                win.addstr(" " * remaining)
+        except curses.error:
+            pass
+
+def draw_input(win, y, x, prompt, default="", width=50):
+    """Draw an input field and capture text. Returns the string."""
+    curses.echo()
+    curses.curs_set(1)
+    try:
+        win.addstr(y, x, prompt, curses.color_pair(3) | curses.A_BOLD)
+        win.addstr(y, x + len(prompt), " " * width, curses.A_UNDERLINE)
+        win.move(y, x + len(prompt))
+    except curses.error:
+        pass
+
+    # Use getstr for input
+    try:
+        result = win.getstr(y, x + len(prompt), width).decode('utf-8').strip()
+    except (KeyboardInterrupt, EOFError):
+        result = ""
+
+    curses.noecho()
+    curses.curs_set(0)
+    return result if result else default
+
+def status_msg(win, y, x, msg, color=2):
+    try:
+        win.addstr(y, x, msg, curses.color_pair(color) | curses.A_BOLD)
+        win.refresh()
+    except curses.error:
+        pass
+
+# ─── MENU SELECTION ────────────────────────────────────────────────────────────
+
+def select_menu(stdscr, y, x, items, title="", width=42):
+    """Interactive arrow-key menu. Returns (index, value)."""
+    selected = 0
+    h = len(items) + 2
+
+    while True:
+        # Draw box + menu
+        draw_box(stdscr, y - 1, x - 2, h + 2, width + 4, title)
+        draw_menu(stdscr, y, x, items, selected, width)
+        stdscr.addstr(y + h - 1, x, "↑↓ navigate  ⏎ select  q quit", curses.color_pair(3))
+        stdscr.refresh()
+
+        key = stdscr.getch()
+
+        if key in (curses.KEY_UP, ord('k')):
+            selected = (selected - 1) % len(items)
+        elif key in (curses.KEY_DOWN, ord('j')):
+            selected = (selected + 1) % len(items)
+        elif key in (curses.KEY_ENTER, 10, 13):
+            return selected, items[selected][0]
+        elif key in (ord('q'), ord('Q'), 27):  # q or ESC
+            return -1, None
+
+# ─── DOWNLOAD ENGINE ──────────────────────────────────────────────────────────
+
+def run_download(stdscr, url, media_type, quality, fmt):
+    """Execute yt-dlp with a live progress display."""
+    h, w = stdscr.getmaxyx()
+    stdscr.clear()
+
+    # Build command
+    common = ["--embed-metadata", "--no-warnings", "--newline"]
+
+    if media_type == "audio":
+        out_tmpl = f"{MUSIC_DIR}/%(uploader)s/%(title)s.%(ext)s"
+        cmd = [
+            "yt-dlp",
+            "-x",
+            "--audio-format", fmt,
+            "--audio-quality", quality,
+            "-o", out_tmpl,
+        ] + common + [url]
+    else:
+        out_tmpl = f"{VIDEO_DIR}/%(uploader)s/%(title)s_[{quality}p].%(ext)s"
+        cmd = [
+            "yt-dlp",
+            "-S", f"res:{quality}",
+            "--merge-output-format", fmt,
+            "-o", out_tmpl,
+        ] + common + [url]
+
+    # Header
+    draw_banner(stdscr, 0)
+    info_y = len(BANNER.split('\n')) + 2
+    stdscr.addstr(info_y, 2, f"⬇  Downloading...", curses.color_pair(1) | curses.A_BOLD)
+    stdscr.addstr(info_y + 1, 2, f"   Type: {media_type.upper()}  |  Quality: {quality}  |  Format: {fmt.upper()}", curses.color_pair(5))
+    stdscr.addstr(info_y + 2, 2, f"   URL: {url[:w-8]}", curses.color_pair(3))
+    stdscr.refresh()
+
+    # Run process
+    log_y = info_y + 4
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
+        progress_re = re.compile(r'\[download\]\s+(\d+\.?\d*)%')
+        speed_re = re.compile(r'at\s+([\d.]+\S+/s)')
+        eta_re = re.compile(r'ETA\s+([\d:]+)')
+
+        for line in proc.stdout:
+            line = line.strip()
+            if not line:
+                continue
+
+            # Parse progress
+            pct_match = progress_re.search(line)
+            if pct_match:
+                pct = float(pct_match.group(1))
+                bar_w = min(w - 10, 50)
+                filled = int(bar_w * pct / 100)
+                bar = "█" * filled + "░" * (bar_w - filled)
+
+                speed = speed_re.search(line)
+                eta = eta_re.search(line)
+                extra = ""
+                if speed:
+                    extra += f"  ⚡ {speed.group(1)}"
+                if eta:
+                    extra += f"  ⏱  {eta.group(1)}"
+
+                try:
+                    stdscr.addstr(log_y, 2, f"   [{bar}] {pct:5.1f}%{extra}" + " " * 10)
+                    stdscr.refresh()
+                except curses.error:
+                    pass
+            else:
+                # Show status lines (merging, extracting, etc.)
+                if any(k in line.lower() for k in ["merging", "extracting", "downloading", "writing", "destination"]):
+                    try:
+                        stdscr.addstr(log_y + 2, 2, f"   {line[:w-6]}" + " " * 10, curses.color_pair(3))
+                        stdscr.refresh()
+                    except curses.error:
+                        pass
+
+        proc.wait()
+
+        if proc.returncode == 0:
+            status_msg(stdscr, log_y + 4, 2, "   ✅ Download complete! Check your storage.", 2)
+        else:
+            status_msg(stdscr, log_y + 4, 2, f"   ❌ yt-dlp exited with code {proc.returncode}", 4)
+
+    except FileNotFoundError:
+        status_msg(stdscr, log_y, 2, "   ❌ yt-dlp not found! Run: pip install yt-dlp", 4)
+    except Exception as e:
+        status_msg(stdscr, log_y, 2, f"   ❌ Error: {e}", 4)
+
+    stdscr.addstr(log_y + 6, 2, "   Press any key to return to menu...", curses.color_pair(3))
+    stdscr.refresh()
+    stdscr.getch()
+
+# ─── MAIN TUI FLOW ────────────────────────────────────────────────────────────
+
+def main(stdscr):
+    curses.curs_set(0)
+    stdscr.keypad(True)
+    init_colors()
+
+    while True:
+        stdscr.clear()
+        h, w = stdscr.getmaxyx()
+
+        # Banner
+        y = draw_banner(stdscr, 1)
+
+        # URL Input
+        stdscr.addstr(y, 2, "─" * (w - 4), curses.color_pair(5))
+        y += 2
+
+        url = draw_input(stdscr, y, 2, "🔗 Paste YouTube URL: ", width=min(w - 30, 60))
+        if not url:
+            status_msg(stdscr, y + 2, 2, "❌ No URL provided. Exiting.", 4)
+            stdscr.getch()
+            break
+
+        y += 3
+
+        # Media Type Selection
+        type_items = [
+            ("video", "🎬  Video  (smart sorting → /yt/)"),
+            ("audio", "🎵  Audio  (music sorting → /Music/)"),
+        ]
+        idx, media_type = select_menu(stdscr, y, 4, type_items, "FORMAT TYPE", width=44)
+        if media_type is None:
+            continue
+
+        y += len(type_items) + 4
+
+        # Quality Selection
+        if media_type == "video":
+            idx, quality = select_menu(stdscr, y, 4, VIDEO_QUALITIES, "VIDEO QUALITY", width=44)
+        else:
+            idx, quality = select_menu(stdscr, y, 4, AUDIO_QUALITIES, "AUDIO QUALITY", width=44)
+        if quality is None:
+            continue
+
+        y += (len(VIDEO_QUALITIES) if media_type == "video" else len(AUDIO_QUALITIES)) + 4
+
+        # Container Format
+        if media_type == "video":
+            idx, fmt = select_menu(stdscr, y, 4, VIDEO_FORMATS, "CONTAINER", width=44)
+        else:
+            idx, fmt = select_menu(stdscr, y, 4, AUDIO_FORMATS, "CONTAINER", width=44)
+        if fmt is None:
+            continue
+
+        # Confirm & Download
+        run_download(stdscr, url, media_type, quality, fmt)
+
+# ─── ENTRY POINT ───────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    # Allow passing URL as argument (backward compat with bash version)
+    if len(sys.argv) > 1:
+        os.environ["YT_PRESET_URL"] = sys.argv[1]
+
+    try:
+        curses.wrapper(main)
+    except KeyboardInterrupt:
+        print("\n👋 Bye!")
+        sys.exit(0)
