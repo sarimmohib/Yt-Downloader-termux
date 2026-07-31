@@ -12,7 +12,9 @@ pip install yt-dlp -y
 # 2. Setup the command
 # This takes the 'yt' file from your cloned folder and puts it in the system path
 chmod +x yt
-cp yt $PREFIX/bin/yt
+# in install.sh, replace the cp line:
+cp yt.py $PREFIX/bin/yt
+chmod +x $PREFIX/bin/yt
 
 echo "--------------------------------------------------"
 echo "--->Installation Successful!"
